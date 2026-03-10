@@ -1,0 +1,38 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>uam_controller</name>
+  <version>1.0.0</version>
+  <description>
+    Adaptive Backstepping + RBFNN + LSTM Predictive Feedforward Controller
+    cho Unmanned Aerial Manipulator (UAM) gắn cánh tay robot 6-DoF.
+    Nền tảng: PX4 Autopilot + ROS2 Humble + Raspberry Pi 4.
+  </description>
+
+  <maintainer email="uam.research@example.com">UAM Research Team</maintainer>
+  <license>MIT</license>
+
+  <!-- Phụ thuộc build -->
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <buildtool_depend>ament_cmake_python</buildtool_depend>
+
+  <!-- Phụ thuộc C++ -->
+  <depend>rclcpp</depend>
+  <depend>px4_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>sensor_msgs</depend>
+  <depend>std_msgs</depend>
+  <depend>trajectory_msgs</depend>
+  <depend>eigen3_cmake_module</depend>
+
+  <!-- Phụ thuộc Python -->
+  <depend>rclpy</depend>
+
+  <!-- Phụ thuộc test -->
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_lint_common</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>
