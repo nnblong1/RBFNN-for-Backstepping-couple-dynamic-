@@ -1,0 +1,82 @@
+# =============================================================
+#  uam_controller_params.yaml
+#  NGUỒN DUY NHẤT cho mọi tham số của hệ thống UAM.
+#  Launch file chỉ trỏ đến file này, không định nghĩa thêm gì.
+#
+#  Chỉnh sửa duy nhất ở đây, chạy lại launch là có hiệu lực.
+# =============================================================
+
+# ─────────────────────────────────────────────────────────────
+#  NODE 1 – uam_adaptive_controller  (C++, 100 Hz)
+# ─────────────────────────────────────────────────────────────
+uam_adaptive_controller:
+  ros__parameters:
+
+    # ── Vật lý hệ thống ────────────────────────────────────────
+    mass_nominal: 2.5     # kg   – Giá trị m̂ khởi tạo
+    gravity:      9.81    # m/s²
+    Ixx:          0.029   # kg·m²
+    Iyy:          0.029   # kg·m²
+    Izz:          0.055   # kg·m²
+    lx:           0.23    # m    – Tay đòn Roll  (U2)
+    ly:           0.23    # m    – Tay đòn Pitch (U3)
+    max_thrust:   40.0    # N
+    max_torque:   5.0     # N·m
+
+    # ── Điểm bay mặc định ──────────────────────────────────────
+    # Thay thế hover_height_arg trong launch file cũ
+    z_des: 1.5            # m – Độ cao hover
+    x_des: 0.0            # m
+    y_des: 0.0            # m
+    psi_des: 0.0          # rad – Hướng Yaw mong muốn
+
+    # ── Trục Z – K5p, K5i, K5d, cz ────────────────────────────
+    alt_Kp: 1.5
+    alt_Ki: 0.2
+    alt_Kd: 1.0
+    alt_cz: 0.3           # Tốc độ thích nghi m̂
+
+    # ── Roll – K7p, K7i, K7d ───────────────────────────────────
+    roll_Kp: 2.0
+    roll_Ki: 0.1
+    roll_Kd: 1.2
+
+    # ── Pitch – K9p, K9i, K9d ──────────────────────────────────
+    pitch_Kp: 2.0
+    pitch_Ki: 0.1
+    pitch_Kd: 1.2
+
+    # ── Yaw – K11p, K11i, K11d ─────────────────────────────────
+    yaw_Kp: 1.0
+    yaw_Ki: 0.05
+    yaw_Kd: 0.8
+
+    # ── RBFNN – ước lượng n̂₀ online ───────────────────────────
+    rbfnn_neurons: 25
+    rbfnn_lr:      0.03   # Γ – giảm để ổn định ban đầu
+    rbfnn_eta:     0.005  # η – weight leakage
+    rbfnn_width:   1.5    # b
+
+# ─────────────────────────────────────────────────────────────
+#  NODE 2 – lstm_predictive_node  (Python, 20 Hz)
+# ─────────────────────────────────────────────────────────────
+lstm_predictive_node:
+  ros__parameters:
+    # model_path được truyền qua launch argument 'model_path'
+    # (đường dẫn file .pth phụ thuộc máy, không hardcode ở đây)
+    seq_len:       10     # Chiều dài chuỗi đầu vào LSTM
+    scale_factor:  1.0    # Hệ số khuếch đại đầu ra dự báo
+    enable_filter: true   # Bật bộ lọc EMA làm mịn tín hiệu
+
+# ─────────────────────────────────────────────────────────────
+#  NODE 3 – arm_dynamics_node  (Python, 50 Hz)
+# ─────────────────────────────────────────────────────────────
+arm_dynamics_node:
+  ros__parameters:
+    # Tham số hình học cánh tay (DH parameters)
+    # Thay bằng giá trị đo được từ CAD model hoặc datasheet tay máy thực tế
+    link_masses:   [0.40, 0.35, 0.25, 0.15, 0.12, 0.08]   # kg
+    link_lengths:  [0.15, 0.13, 0.10, 0.08, 0.06, 0.05]   # m
+    dh_alpha:      [0.0,  1.5708, 0.0,    0.0,    1.5708, -1.5708]  # rad
+    dh_a:          [0.0,  0.0,    0.425,  0.392,  0.0,     0.0]     # m
+    dh_d:          [0.089,0.0,    0.0,    0.109,  0.095,   0.082]   # m

@@ -106,7 +106,7 @@ class RecursiveNewtonEuler:
         if base_acc is None:
             base_acc = -self.GRAVITY  # gia tốc trọng trường lên trên
 
-        # ── Đệ quy tiến (Forward Recursion) ──
+        # ── Đệ quy thuận (Forward Recursion) ──
         # Vận tốc góc ω, gia tốc góc α, gia tốc tuyến tính tại từng link
         omega_prev  = np.zeros(3)        # ω_0 = 0
         alpha_prev  = np.zeros(3)        # α_0 = 0
@@ -264,7 +264,7 @@ class ArmDynamicsNode(Node):
         if len(msg.position) < 6:
             return
 
-        now = self.get_clock()->now().seconds() if hasattr(self, '_clock') \
+        now = self.get_clock().now().seconds() if hasattr(self, '_clock') \
               else rclpy.clock.Clock().now().nanoseconds() * 1e-9
 
         self.q[:] = list(msg.position[:6])

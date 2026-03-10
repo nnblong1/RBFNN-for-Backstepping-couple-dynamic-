@@ -6,7 +6,7 @@ if(NOT CMAKE_CXX_STANDARD)
   set(CMAKE_CXX_STANDARD 17)
 endif()
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-  add_compile_options(-Wall -Wextra -O2 -march=armv8-a)  # Tối ưu cho Cortex-A72
+  add_compile_options(-Wall -Wextra -O2 -march=native)  # Tối ưu cho CPU hiện tại
 endif()
 
 # ── Phụ thuộc ──
@@ -37,6 +37,7 @@ ament_target_dependencies(uam_backstepping_rbfnn_node
   rclcpp
   px4_msgs
   geometry_msgs
+  sensor_msgs
   std_msgs
 )
 

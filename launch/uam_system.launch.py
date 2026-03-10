@@ -1,149 +1,184 @@
 """
 uam_system.launch.py
 --------------------
-Launch file khởi động toàn bộ hệ thống UAM:
-  1. Micro XRCE-DDS Agent (cầu nối PX4 ↔ ROS2)
-  2. Node C++: Adaptive Backstepping + RBFNN (100 Hz)
-  3. Node Python: LSTM Predictive Feedforward (20 Hz)
-  4. Node Python: Arm Dynamics Newton-Euler (50 Hz)
+Khởi động toàn bộ hệ thống UAM.
 
-Sử dụng:
+NGUYÊN TẮC THIẾT KẾ:
+  - File này KHÔNG định nghĩa bất kỳ giá trị tham số nào.
+  - Mọi tham số điều khiển nằm trong:
+      config/uam_controller_params.yaml   (mặc định)
+      config/uam_controller_params_sim.yaml   (khi sim:=true)
+  - File này chỉ quyết định: node nào chạy, chạy với config nào,
+    kết nối topic ra sao, và thứ tự khởi động.
+
+Cách dùng:
+  # Chạy phần cứng thật
   ros2 launch uam_controller uam_system.launch.py
+
+  # Chạy Gazebo SITL
   ros2 launch uam_controller uam_system.launch.py sim:=true
+
+  # Chỉ định file config khác
+  ros2 launch uam_controller uam_system.launch.py \\
+      config_file:=/path/to/my_custom_params.yaml
+
+  # Chỉ định file trọng số LSTM khác
+  ros2 launch uam_controller uam_system.launch.py \\
+      model_path:=/path/to/retrained_weights.pth
 """
 
-from launch import LaunchDescription
-from launch.actions import (DeclareLaunchArgument, IncludeLaunchDescription,
-                             ExecuteProcess, GroupAction, TimerAction)
-from launch.conditions import IfCondition, UnlessCondition
-from launch.substitutions import (LaunchConfiguration, PathJoinSubstitution,
-                                   PythonExpression)
-from launch_ros.actions import Node, PushRosNamespace
-from launch_ros.substitutions import FindPackageShare
 import os
+from launch import LaunchDescription
+from launch.actions import (
+    DeclareLaunchArgument,
+    ExecuteProcess,
+    TimerAction,
+)
+from launch.conditions import IfCondition, UnlessCondition
+from launch.substitutions import (
+    LaunchConfiguration,
+    PathJoinSubstitution,
+    PythonExpression,
+)
+from launch_ros.actions import Node
+from launch_ros.substitutions import FindPackageShare
 
 
 def generate_launch_description():
 
     pkg_share = FindPackageShare('uam_controller')
 
-    # ── Tham số launch ──
-    sim_arg = DeclareLaunchArgument(
+    # ═══════════════════════════════════════════════════════════
+    #  KHAI BÁO ARGUMENT
+    #  Chỉ có 3 loại argument hợp lệ ở đây:
+    #    1. Chọn môi trường (sim / hardware)
+    #    2. Chọn file config
+    #    3. Chọn file model (phụ thuộc đường dẫn máy)
+    # ═══════════════════════════════════════════════════════════
+
+    arg_sim = DeclareLaunchArgument(
         'sim',
         default_value='false',
-        description='true = môi trường mô phỏng Gazebo SITL'
+        description='true = Gazebo SITL | false = phần cứng thật'
     )
-    model_path_arg = DeclareLaunchArgument(
+
+    arg_config = DeclareLaunchArgument(
+        'config_file',
+        default_value=PathJoinSubstitution(
+            [pkg_share, 'config', 'uam_controller_params.yaml']
+        ),
+        description='Đường dẫn file YAML chứa toàn bộ tham số hệ thống'
+    )
+
+    arg_model = DeclareLaunchArgument(
         'model_path',
-        default_value=PathJoinSubstitution([pkg_share, 'models', 'lstm_uam_weights.pth']),
-        description='Đường dẫn tới file trọng số LSTM'
-    )
-    hover_height_arg = DeclareLaunchArgument(
-        'hover_height',
-        default_value='1.5',
-        description='Độ cao lơ lửng mặc định [m]'
+        default_value=PathJoinSubstitution(
+            [pkg_share, 'models', 'lstm_uam_weights.pth']
+        ),
+        description='Đường dẫn file trọng số LSTM (.pth)'
     )
 
     sim         = LaunchConfiguration('sim')
+    config_file = LaunchConfiguration('config_file')
     model_path  = LaunchConfiguration('model_path')
-    hover_height= LaunchConfiguration('hover_height')
 
-    # ── Cấu hình tham số bộ điều khiển ──
-    controller_params = {
-        'mass_total':    2.5,
-        'Ixx':           0.029,
-        'Iyy':           0.029,
-        'Izz':           0.055,
-        'K1_pos':        3.0,
-        'K2_vel':        2.5,
-        'K1_att':        4.0,
-        'K2_rate':       3.0,
-        'rbfnn_neurons': 25,
-        'rbfnn_lr':      0.08,
-        'rbfnn_eta':     0.005,
-        'rbfnn_width':   1.5,
-    }
+    # ═══════════════════════════════════════════════════════════
+    #  NODE 0 – Micro XRCE-DDS Agent
+    #  Cầu nối PX4 Firmware ↔ ROS2 qua Micro XRCE-DDS
+    #  Hardware: UART /dev/ttyAMA0 @ 921600 bps
+    #  Sim    : UDP port 8888
+    # ═══════════════════════════════════════════════════════════
 
-    # ── Node 1: Micro XRCE-DDS Agent ──
-    # Chạy agent để PX4 Firmware có thể giao tiếp với ROS2
-    xrce_dds_agent = ExecuteProcess(
+    xrce_hardware = ExecuteProcess(
         cmd=['MicroXRCEAgent', 'serial', '--dev', '/dev/ttyAMA0', '-b', '921600'],
         name='micro_xrce_dds_agent',
         output='screen',
         condition=UnlessCondition(sim)
     )
 
-    # Chạy agent qua UDP cho môi trường mô phỏng SITL
-    xrce_dds_agent_sim = ExecuteProcess(
+    xrce_sim = ExecuteProcess(
         cmd=['MicroXRCEAgent', 'udp4', '-p', '8888'],
         name='micro_xrce_dds_agent_sim',
         output='screen',
         condition=IfCondition(sim)
     )
 
-    # ── Node 2: Adaptive Backstepping + RBFNN (C++) ──
+    # ═══════════════════════════════════════════════════════════
+    #  NODE 1 – Adaptive Backstepping + RBFNN  (C++, 100 Hz)
+    #  Tham số: ĐỌC HOÀN TOÀN từ config_file
+    #  Không có parameters=[{...}] inline ở đây
+    # ═══════════════════════════════════════════════════════════
+
     backstepping_node = Node(
         package='uam_controller',
         executable='uam_backstepping_rbfnn_node',
         name='uam_adaptive_controller',
         output='screen',
-        parameters=[
-            controller_params,
-            {'hover_height': hover_height}
-        ],
+        parameters=[config_file],   # ← duy nhất, không thêm gì nữa
         remappings=[
             ('/fmu/in/offboard_control_mode',   '/fmu/in/offboard_control_mode'),
             ('/fmu/in/vehicle_torque_setpoint',  '/fmu/in/vehicle_torque_setpoint'),
             ('/fmu/in/vehicle_thrust_setpoint',  '/fmu/in/vehicle_thrust_setpoint'),
             ('/fmu/out/vehicle_odometry',        '/fmu/out/vehicle_odometry'),
+            ('/fmu/out/vehicle_status',          '/fmu/out/vehicle_status'),
         ],
-        # Gắn core CPU 0 + 1 cho node điều khiển quan trọng
         additional_env={'ROS_DOMAIN_ID': '0'}
     )
 
-    # ── Node 3: LSTM Predictive Feedforward (Python) ──
+    # ═══════════════════════════════════════════════════════════
+    #  NODE 2 – LSTM Predictive Feedforward  (Python, 20 Hz)
+    #  model_path là ngoại lệ duy nhất: phụ thuộc đường dẫn máy
+    #  nên truyền qua argument thay vì hardcode trong YAML
+    # ═══════════════════════════════════════════════════════════
+
     lstm_node = Node(
         package='uam_controller',
         executable='lstm_feedforward_node.py',
         name='lstm_predictive_node',
         output='screen',
-        parameters=[{
-            'model_path':    model_path,
-            'seq_len':       10,
-            'scale_factor':  1.0,
-            'enable_filter': True
-        }]
+        parameters=[
+            config_file,                    # seq_len, scale_factor, enable_filter
+            {'model_path': model_path},     # ngoại lệ: đường dẫn phụ thuộc máy
+        ]
     )
 
-    # ── Node 4: Arm Dynamics Newton-Euler (Python) ──
+    # ═══════════════════════════════════════════════════════════
+    #  NODE 3 – Arm Dynamics Newton-Euler  (Python, 50 Hz)
+    #  Tham số: ĐỌC HOÀN TOÀN từ config_file
+    # ═══════════════════════════════════════════════════════════
+
     arm_dynamics_node = Node(
         package='uam_controller',
         executable='arm_dynamics_node.py',
         name='arm_dynamics_node',
-        output='screen'
+        output='screen',
+        parameters=[config_file]    # link_masses, link_lengths, dh_*
     )
 
-    # ── Trễ khởi động để đảm bảo DDS bridge sẵn sàng ──
-    delayed_backstepping = TimerAction(
-        period=2.0,
-        actions=[backstepping_node]
-    )
-    delayed_lstm = TimerAction(
-        period=3.0,
-        actions=[lstm_node]
-    )
-    delayed_arm_dynamics = TimerAction(
-        period=2.5,
-        actions=[arm_dynamics_node]
-    )
+    # ═══════════════════════════════════════════════════════════
+    #  THỨ TỰ KHỞI ĐỘNG
+    #  DDS Agent cần sẵn sàng trước khi các node ROS2 kết nối PX4
+    #
+    #  t=0s   DDS Agent khởi động
+    #  t=2s   Backstepping node bắt đầu (chờ DDS ổn định)
+    #  t=2.5s Arm Dynamics node bắt đầu
+    #  t=3s   LSTM node bắt đầu (cần Backstepping đã chạy trước)
+    # ═══════════════════════════════════════════════════════════
+
+    delayed_backstepping = TimerAction(period=2.0,   actions=[backstepping_node])
+    delayed_arm_dynamics = TimerAction(period=2.5,   actions=[arm_dynamics_node])
+    delayed_lstm         = TimerAction(period=3.0,   actions=[lstm_node])
 
     return LaunchDescription([
-        sim_arg,
-        model_path_arg,
-        hover_height_arg,
-        xrce_dds_agent,
-        xrce_dds_agent_sim,
+        # Arguments
+        arg_sim,
+        arg_config,
+        arg_model,
+        # DDS bridge (khởi động ngay)
+        xrce_hardware,
+        xrce_sim,
+        # Các node điều khiển (khởi động có trễ)
         delayed_backstepping,
-        delayed_lstm,
         delayed_arm_dynamics,
+        delayed_lstm,
     ])
