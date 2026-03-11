@@ -165,9 +165,23 @@ def generate_launch_description():
     #  t=3s   LSTM node bắt đầu (cần Backstepping đã chạy trước)
     # ═══════════════════════════════════════════════════════════
 
+    # ═══════════════════════════════════════════════════════════
+    #  NODE 4 – Arm Command Bridge (ROS 2 JointState -> Gazebo Cmd)
+    #  Publish trực tiếp tới Gazebo transport (không cần ros_gz_bridge)
+    # ═══════════════════════════════════════════════════════════
+
+    arm_cmd_node = Node(
+        package='uam_controller',
+        executable='arm_gazebo_command_node.py',
+        name='arm_gazebo_command_node',
+        output='screen',
+        condition=IfCondition(sim)
+    )
+
     delayed_backstepping = TimerAction(period=2.0,   actions=[backstepping_node])
     delayed_arm_dynamics = TimerAction(period=2.5,   actions=[arm_dynamics_node])
     delayed_lstm         = TimerAction(period=3.0,   actions=[lstm_node])
+    delayed_arm_cmd      = TimerAction(period=3.5,   actions=[arm_cmd_node])
 
     return LaunchDescription([
         # Arguments
@@ -181,4 +195,5 @@ def generate_launch_description():
         delayed_backstepping,
         delayed_arm_dynamics,
         delayed_lstm,
+        delayed_arm_cmd,
     ])

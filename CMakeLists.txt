@@ -61,6 +61,8 @@ install(PROGRAMS
   scripts/lstm_feedforward_node.py
   scripts/arm_dynamics_node.py
   scripts/train_lstm_offline.py
+  scripts/arm_gazebo_command_node.py
+  scripts/arm_trajectory_generator.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

@@ -68,17 +68,6 @@ colcon build --packages-select uam_controller --symlink-install
 # Source workspace
 source install/setup.bash
 ```
-
-> [!IMPORTANT]
-> Nếu build lỗi thiếu `px4_msgs`, cần clone và build trước:
-> ```bash
-> cd ~/ros2_ws/src
-> git clone https://github.com/PX4/px4_msgs.git
-> cd ~/ros2_ws && colcon build --packages-select px4_msgs
-> source install/setup.bash
-> colcon build --packages-select uam_controller
-> ```
-
 ---
 
 ## Bước 3: Khởi Động PX4 SITL + Gazebo
