@@ -13,19 +13,19 @@ uam_adaptive_controller:
   ros__parameters:
 
     # ── Vật lý hệ thống ────────────────────────────────────────
-    mass_nominal: 2.5     # kg   – Giá trị m̂ khởi tạo
+    mass_nominal: 2.422     # kg   – Giá trị m̂ khởi tạo
     gravity:      9.81    # m/s²
     Ixx:          0.029   # kg·m²
     Iyy:          0.029   # kg·m²
     Izz:          0.055   # kg·m²
     lx:           0.23    # m    – Tay đòn Roll  (U2)
     ly:           0.23    # m    – Tay đòn Pitch (U3)
-    max_thrust:   40.0    # N
+    max_thrust:   33.354    # N
     max_torque:   5.0     # N·m
 
     # ── Điểm bay mặc định ──────────────────────────────────────
     # Thay thế hover_height_arg trong launch file cũ
-    z_des: 1.5            # m – Độ cao hover
+    z_des: 2.0            # m – Độ cao hover
     x_des: 0.0            # m
     y_des: 0.0            # m
     psi_des: 0.0          # rad – Hướng Yaw mong muốn
